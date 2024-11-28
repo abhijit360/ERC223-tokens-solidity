@@ -138,39 +138,51 @@ contract TokenManager is ERC223Token, TokenHolder
     // set up the manager's buy/sell activity
     constructor(uint _price, uint _fee) TokenHolder(this) payable
     {
+        pricePerToken = _price;
+        feePerTransaction = _fee;
     }
     
     // Returns the total price for the passed quantity of tokens
     function price(uint amt) public view returns(uint) 
     {  
-        
+        return this.pricePerToken * amt;
     }
 
     // Returns the total fee, given this quantity of tokens
     function fee(uint amt) public view returns(uint) 
     {  
-        
+        return this.feePerTransaction * amt;
     }
     
     // Caller buys tokens from this contract
     function sellToCaller(address to, uint amount) payable override public
     {
+        require(balances[this] >= amount);
+        require(this.balance >= amount * pricePerToken)
+        
     }
     
     // Caller sells tokens to this contract
     function buyFromCaller(uint amount) public payable
-    {
+    {   
+        requre(balances[msg.sender] >= amount);
+        balances[this.address].add(amount);
+
+        address payable callerAddress = payable(msg.address)
+        callerAddress.transfer(amount * this.pricePerToken);
     }
     
     
     // Create some new tokens, and give them to this TokenManager
     function mint(uint amount) internal onlyOwner
     {
+        balances[this.address].add(amount);
     }
     
     // Destroy some existing tokens, that are owned by this TokenManager
     function melt(uint amount) external onlyOwner
     {
+        balances[this.address].sub(amount);
     }
 }
 
