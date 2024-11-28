@@ -65,6 +65,68 @@ contract TokenHolder is ITokenHolder
     }
     
     // Implement all ITokenHolder functions and tokenFallback
+     // Return the current balance of ethereum held by this contract
+    function ethBalance() view external returns (uint)
+    {
+        return address(this).balance;
+    }
+    
+    // Return the quantity of tokens held by this contract
+    function tokenBalance() virtual external view returns(uint){
+        return balances[this.address]; // uses the balances array of the IERC2223 interface
+    };
+
+    // indicate that this contract has tokens for sale at some price, so buyFromMe will be successful
+    function putUpForSale(uint amt, uint price) virtual public
+    {
+        return amt * price;
+    }
+ 
+    // This function is called by the buyer to pay in ETH and receive tokens.  Note that this contract should ONLY sell the amount of tokens at the price specified by putUpForSale!
+    function sellToCaller(address to, uint qty) virtual external payable
+    {
+        require(msg.sender == to); // only address buying can call this
+        require(qty <= ) // check if the qty of purchase is less than existing supply
+        require(msg.value == qty *) // check that the amount paid for each token is correct
+        // transfer token to address
+
+        assert(false);
+    }
+   
+  
+    // buy tokens from another holder.  This is OPTIONALLY payable.  The caller can provide the purchase ETH, or expect that the contract already holds it.
+    function buy(uint amt, uint maxPricePer, TokenHolder seller) virtual public payable onlyOwner
+    {
+        // onlyOwner handles the case that only the owner of the transactionc an call this
+        require(seller.tokenBalance() >= amt); // attest to see if the seller has enough tokens to sell
+        require(msg.value >= amt * maxPricePer); // check to see if the buyer has sent enough money to make this transaction
+        balances[seller.address].add(amt); // add the tokens to the seller's balance
+        balances[msg.sender].sub(amt); // subtract the tokens from the buyer's balance
+        payable address sellerAddresses = payable(seller.address);
+        sellerAddresses.transfer(amt * maxPricePer); // transfer the money to the seller
+        assert(false);
+    }
+    
+    // Owner can send tokens
+    function withdraw(address to, uint amount) virtual public onlyOwner
+    {
+        require(balances[msg.sender] >= amount); // check if the owner has enough tokens to withdraw
+        balances[to].add(amount);
+        balances[msg.sender].sub(amount);
+        assert(false);
+    }
+
+    // Sell my tokens back to the token manager
+    function remit(uint amt, uint _pricePer, TokenManager mgr) virtual public onlyOwner payable
+    {
+        require(mgr.ethBalance() >= amt * _pricePer); // check if the manager has enough money to buy the tokens
+        require(balances[msg.sender] >= amt); // check if the owner has enough tokens to sell
+        mgr.buy(amt, _pricePer, msg.sender);
+    }
+    
+    // Validate that this contract can handle tokens of this type
+    // You need to define this function in your derived classes, but it is already specified in IERC223Recipient
+    //function tokenFallback(address _from, uint /*_value*/, bytes memory /*_data*/) override external
 }
 
 
