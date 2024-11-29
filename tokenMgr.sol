@@ -73,7 +73,7 @@ contract TokenHolder is ITokenHolder
     
     // Return the quantity of tokens held by this contract
     function tokenBalance() virtual external view returns(uint){
-        return balances[this.address]; // uses the balances array of the IERC2223 interface
+        return currency.balanceOf(address(this));; // uses the balances array of the IERC2223 interface
     };
 
     // indicate that this contract has tokens for sale at some price, so buyFromMe will be successful
@@ -87,10 +87,10 @@ contract TokenHolder is ITokenHolder
     {
         require(msg.sender == to); // only address buying can call this
         require(qty < amtForSale); // check if the qty of purchase is less than amount available for sale
-        require(qty <= balances[address(this)]); // check if contract has enough tokens
+        require(qty <= currency.balanceOf(address(this))); // check if contract has enough tokens
         require(msg.value == putUpForSale(qty,pricePer));// check that the amount paid for each token is correct
         balances[msg.sender].add(qty); // transfer token to address
-        balances[this.address].sub(qty)
+        balances[this].sub(qty)
     }
    
   
@@ -113,7 +113,7 @@ contract TokenHolder is ITokenHolder
     // Owner can send tokens
     function withdraw(address to, uint amount) virtual public onlyOwner
     {
-        require(balances[msg.sender] >= amount); // check if the owner has enough tokens to withdraw
+        require(currency.balanceOf(msg.sender) >= amount); // check if the owner has enough tokens to withdraw
         balances[to].add(amount);
         balances[msg.sender].sub(amount);
     }
@@ -122,13 +122,13 @@ contract TokenHolder is ITokenHolder
     function remit(uint amt, uint _pricePer, TokenManager mgr) virtual public onlyOwner payable
     {
         require(mgr.ethBalance() >= amt.mul(_pricePer)); // check if the manager has enough money to buy the tokens
-        require(balances[msg.sender] >= amt); // check if the owner has enough tokens to sell
+        require(currency.balanceOf(msg.sender) >= amt); // check if the owner has enough tokens to sell
         mgr.buy(amt, _pricePer, msg.sender);
     }
     
     // Validate that this contract can handle tokens of this type
     // You need to define this function in your derived classes, but it is already specified in IERC223Recipient
-    //function tokenFallback(address _from, uint /*_value*/, bytes memory /*_data*/) override external
+    //function tokenFallback(address _from, uint _value, bytes memory _data) override external
 }
 
 
@@ -168,7 +168,7 @@ contract TokenManager is ERC223Token, TokenHolder
     function buyFromCaller(uint amount) public payable
     {   
         requre(balances[msg.sender] >= amount);
-        balances[this.address].add(amount);
+        balances[this].add(amount);
 
         address payable callerAddress = payable(msg.address)
         callerAddress.transfer(amount * this.pricePerToken);
@@ -178,13 +178,13 @@ contract TokenManager is ERC223Token, TokenHolder
     // Create some new tokens, and give them to this TokenManager
     function mint(uint amount) internal onlyOwner
     {
-        balances[this.address].add(amount);
+        balances[this].add(amount);
     }
     
     // Destroy some existing tokens, that are owned by this TokenManager
     function melt(uint amount) external onlyOwner
     {
-        balances[this.address].sub(amount);
+        balances[this].sub(amount);
     }
 }
 
