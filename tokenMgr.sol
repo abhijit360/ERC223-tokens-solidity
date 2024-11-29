@@ -89,8 +89,9 @@ contract TokenHolder is ITokenHolder
         require(qty < amtForSale); // check if the qty of purchase is less than amount available for sale
         require(qty <= currency.balanceOf(address(this))); // check if contract has enough tokens
         require(msg.value == putUpForSale(qty,pricePer));// check that the amount paid for each token is correct
-        balances[msg.sender].add(qty); // transfer token to address
-        balances[this].sub(qty);
+        msg.sender.transfer(this,qty); // transfer token from msg.sender
+        // balances[msg.sender].add(qty); // transfer token to address
+        // balances[this].sub(qty);
     }
    
   
@@ -102,9 +103,10 @@ contract TokenHolder is ITokenHolder
         require(msg.value >= amt.mul(maxPricePer)); // check to see if the buyer has sent enough money to make this transaction
         
         // handle token exchange
-        balances[address(seller)].add(amt); // add the tokens to the seller's balance
-        balances[msg.sender].sub(amt); // subtract the tokens from the buyer's balance
-        
+        // balances[address(seller)].add(amt); // add the tokens to the seller's balance
+        // balances[msg.sender].sub(amt); // subtract the tokens from the buyer's balance
+        msg.sender.transfer(address(seller),amt);
+
         // handle ETH exchange
         address payable sellerAddresses = payable(seller.address);
         sellerAddresses.transfer(amt.mul(maxPricePer)); // transfer the money to the seller
@@ -114,8 +116,9 @@ contract TokenHolder is ITokenHolder
     function withdraw(address to, uint amount) virtual public onlyOwner
     {
         require(currency.balanceOf(msg.sender) >= amount); // check if the owner has enough tokens to withdraw
-        balances[to].add(amount);
-        balances[msg.sender].sub(amount);
+        msg.sender.transfer(to,amount);
+        // balances[to].add(amount);
+        // balances[msg.sender].sub(amount);
     }
 
     // Sell my tokens back to the token manager
@@ -168,8 +171,8 @@ contract TokenManager is ERC223Token, TokenHolder
     // Caller sells tokens to this contract
     function buyFromCaller(uint amount) public payable
     {   
-        requre(_balances[msg.sender] >= amount);
-        _balances[this].add(amount);
+        requre(balances[msg.sender] >= amount);
+        balances[this].add(amount);
 
         address payable callerAddress = payable(msg.address);
         callerAddress.transfer(amount * this.pricePerToken);
@@ -179,13 +182,13 @@ contract TokenManager is ERC223Token, TokenHolder
     // Create some new tokens, and give them to this TokenManager
     function mint(uint amount) internal onlyOwner
     {
-        _balances[this].add(amount);
+        balances[this].add(amount);
     }
     
     // Destroy some existing tokens, that are owned by this TokenManager
     function melt(uint amount) external onlyOwner
     {
-        _balances[this].sub(amount);
+        balances[this].sub(amount);
     }
 }
 
