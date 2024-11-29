@@ -79,18 +79,18 @@ contract TokenHolder is ITokenHolder
     // indicate that this contract has tokens for sale at some price, so buyFromMe will be successful
     function putUpForSale(uint amt, uint price) virtual public
     {
-        return amt * price;
+        return amt.mul(price);
     }
  
     // This function is called by the buyer to pay in ETH and receive tokens.  Note that this contract should ONLY sell the amount of tokens at the price specified by putUpForSale!
     function sellToCaller(address to, uint qty) virtual external payable
     {
         require(msg.sender == to); // only address buying can call this
-        require(qty <= ) // check if the qty of purchase is less than existing supply
-        require(msg.value == qty *) // check that the amount paid for each token is correct
-        // transfer token to address
-
-        assert(false);
+        require(qty < amtForSale); // check if the qty of purchase is less than amount available for sale
+        require(qty <= balances[address(this)]); // check if contract has enough tokens
+        require(msg.value == putUpForSale(qty,pricePer));// check that the amount paid for each token is correct
+        balances[msg.sender].add(qty); // transfer token to address
+        balances[this.address].sub(qty)
     }
    
   
@@ -99,12 +99,15 @@ contract TokenHolder is ITokenHolder
     {
         // onlyOwner handles the case that only the owner of the transactionc an call this
         require(seller.tokenBalance() >= amt); // attest to see if the seller has enough tokens to sell
-        require(msg.value >= amt * maxPricePer); // check to see if the buyer has sent enough money to make this transaction
-        balances[seller.address].add(amt); // add the tokens to the seller's balance
+        require(msg.value >= amt.mul(maxPricePer)); // check to see if the buyer has sent enough money to make this transaction
+        
+        // handle token exchange
+        balances[address(seller)].add(amt); // add the tokens to the seller's balance
         balances[msg.sender].sub(amt); // subtract the tokens from the buyer's balance
-        payable address sellerAddresses = payable(seller.address);
-        sellerAddresses.transfer(amt * maxPricePer); // transfer the money to the seller
-        assert(false);
+        
+        // handle ETH exchange
+        address payable sellerAddresses = payable(seller.address);
+        sellerAddresses.transfer(amt.mul(maxPricePer)); // transfer the money to the seller
     }
     
     // Owner can send tokens
@@ -113,13 +116,12 @@ contract TokenHolder is ITokenHolder
         require(balances[msg.sender] >= amount); // check if the owner has enough tokens to withdraw
         balances[to].add(amount);
         balances[msg.sender].sub(amount);
-        assert(false);
     }
 
     // Sell my tokens back to the token manager
     function remit(uint amt, uint _pricePer, TokenManager mgr) virtual public onlyOwner payable
     {
-        require(mgr.ethBalance() >= amt * _pricePer); // check if the manager has enough money to buy the tokens
+        require(mgr.ethBalance() >= amt.mul(_pricePer)); // check if the manager has enough money to buy the tokens
         require(balances[msg.sender] >= amt); // check if the owner has enough tokens to sell
         mgr.buy(amt, _pricePer, msg.sender);
     }
@@ -158,7 +160,7 @@ contract TokenManager is ERC223Token, TokenHolder
     function sellToCaller(address to, uint amount) payable override public
     {
         require(balances[this] >= amount);
-        require(this.balance >= amount * pricePerToken)
+        require(this.balance >= amount * pricePerToken);
         
     }
     
