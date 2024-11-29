@@ -65,25 +65,26 @@ contract TokenHolder is ITokenHolder
     }
     
     // Implement all ITokenHolder functions and tokenFallback
-     // Return the current balance of ethereum held by this contract
-    function ethBalance() view external returns (uint)
+    
+    // Return the current balance of ethereum held by this contract
+    override function ethBalance() view external returns (uint)
     {
         return address(this).balance;
     }
     
     // Return the quantity of tokens held by this contract
-    function tokenBalance() virtual external view returns(uint){
+    override function tokenBalance() virtual external view returns(uint){
         return currency.balanceOf(address(this)); // uses the balances array of the IERC2223 interface
     }
 
     // indicate that this contract has tokens for sale at some price, so buyFromMe will be successful
-    function putUpForSale(uint amt, uint price) virtual public
+    override function putUpForSale(uint amt, uint price) virtual public
     {
         return amt.mul(price);
     }
  
     // This function is called by the buyer to pay in ETH and receive tokens.  Note that this contract should ONLY sell the amount of tokens at the price specified by putUpForSale!
-    function sellToCaller(address to, uint qty) virtual external payable
+    override function sellToCaller(address to, uint qty) virtual external payable
     {
         require(msg.sender == to); // only address buying can call this
         require(qty < amtForSale); // check if the qty of purchase is less than amount available for sale
@@ -96,7 +97,7 @@ contract TokenHolder is ITokenHolder
    
   
     // buy tokens from another holder.  This is OPTIONALLY payable.  The caller can provide the purchase ETH, or expect that the contract already holds it.
-    function buy(uint amt, uint maxPricePer, TokenHolder seller) virtual public payable onlyOwner
+    override function buy(uint amt, uint maxPricePer, TokenHolder seller) virtual public payable onlyOwner
     {
         // onlyOwner handles the case that only the owner of the transactionc an call this
         require(seller.tokenBalance() >= amt); // attest to see if the seller has enough tokens to sell
@@ -113,7 +114,7 @@ contract TokenHolder is ITokenHolder
     }
     
     // Owner can send tokens
-    function withdraw(address to, uint amount) virtual public onlyOwner
+    override function withdraw(address to, uint amount) virtual public onlyOwner
     {
         require(currency.balanceOf(msg.sender) >= amount); // check if the owner has enough tokens to withdraw
         msg.sender.transfer(to,amount);
@@ -122,7 +123,7 @@ contract TokenHolder is ITokenHolder
     }
 
     // Sell my tokens back to the token manager
-    function remit(uint amt, uint _pricePer, TokenManager mgr) virtual public onlyOwner payable
+    override function remit(uint amt, uint _pricePer, TokenManager mgr) virtual public onlyOwner payable
     {
         require(mgr.ethBalance() >= amt.mul(_pricePer)); // check if the manager has enough money to buy the tokens
         require(currency.balanceOf(msg.sender) >= amt); // check if the owner has enough tokens to sell
@@ -149,29 +150,29 @@ contract TokenManager is ERC223Token, TokenHolder
     }
     
     // Returns the total price for the passed quantity of tokens
-    function price(uint amt) public view returns(uint) 
+    override function price(uint amt) public view returns(uint) 
     {  
         return this.pricePerToken * amt;
     }
 
     // Returns the total fee, given this quantity of tokens
-    function fee(uint amt) public view returns(uint) 
+    override function fee(uint amt) public view returns(uint) 
     {  
         return this.feePerTransaction * amt;
     }
     
     // Caller buys tokens from this contract
-    function sellToCaller(address to, uint amount) payable override public
+    override function sellToCaller(address to, uint amount) payable override public
     {
-        require(_balances[this] >= amount);
+        require(balances[this] >= amount);
         require(this.balance >= amount * pricePerToken);
         
     }
     
     // Caller sells tokens to this contract
-    function buyFromCaller(uint amount) public payable
+    override function buyFromCaller(uint amount) public payable
     {   
-        requre(balances[msg.sender] >= amount);
+        require(balances[msg.sender] >= amount);
         balances[this].add(amount);
 
         address payable callerAddress = payable(msg.address);
@@ -180,13 +181,13 @@ contract TokenManager is ERC223Token, TokenHolder
     
     
     // Create some new tokens, and give them to this TokenManager
-    function mint(uint amount) internal onlyOwner
+    override function mint(uint amount) internal onlyOwner
     {
         balances[this].add(amount);
     }
     
     // Destroy some existing tokens, that are owned by this TokenManager
-    function melt(uint amount) external onlyOwner
+    override function melt(uint amount) external onlyOwner
     {
         balances[this].sub(amount);
     }
