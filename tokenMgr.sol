@@ -73,8 +73,8 @@ contract TokenHolder is ITokenHolder
     
     // Return the quantity of tokens held by this contract
     function tokenBalance() virtual external view returns(uint){
-        return currency.balanceOf(address(this));; // uses the balances array of the IERC2223 interface
-    };
+        return currency.balanceOf(address(this)); // uses the balances array of the IERC2223 interface
+    }
 
     // indicate that this contract has tokens for sale at some price, so buyFromMe will be successful
     function putUpForSale(uint amt, uint price) virtual public
@@ -90,7 +90,7 @@ contract TokenHolder is ITokenHolder
         require(qty <= currency.balanceOf(address(this))); // check if contract has enough tokens
         require(msg.value == putUpForSale(qty,pricePer));// check that the amount paid for each token is correct
         balances[msg.sender].add(qty); // transfer token to address
-        balances[this].sub(qty)
+        balances[this].sub(qty);
     }
    
   
@@ -135,7 +135,8 @@ contract TokenHolder is ITokenHolder
 contract TokenManager is ERC223Token, TokenHolder
 {
     // Implement all functions
-    
+    uint public pricePerToken;
+    uint public feePerTransaction;
     // Pass the price per token (the specified exchange rate), and the fee per token to
     // set up the manager's buy/sell activity
     constructor(uint _price, uint _fee) TokenHolder(this) payable
@@ -159,7 +160,7 @@ contract TokenManager is ERC223Token, TokenHolder
     // Caller buys tokens from this contract
     function sellToCaller(address to, uint amount) payable override public
     {
-        require(balances[this] >= amount);
+        require(_balances[this] >= amount);
         require(this.balance >= amount * pricePerToken);
         
     }
@@ -167,10 +168,10 @@ contract TokenManager is ERC223Token, TokenHolder
     // Caller sells tokens to this contract
     function buyFromCaller(uint amount) public payable
     {   
-        requre(balances[msg.sender] >= amount);
-        balances[this].add(amount);
+        requre(_balances[msg.sender] >= amount);
+        _balances[this].add(amount);
 
-        address payable callerAddress = payable(msg.address)
+        address payable callerAddress = payable(msg.address);
         callerAddress.transfer(amount * this.pricePerToken);
     }
     
@@ -178,13 +179,13 @@ contract TokenManager is ERC223Token, TokenHolder
     // Create some new tokens, and give them to this TokenManager
     function mint(uint amount) internal onlyOwner
     {
-        balances[this].add(amount);
+        _balances[this].add(amount);
     }
     
     // Destroy some existing tokens, that are owned by this TokenManager
     function melt(uint amount) external onlyOwner
     {
-        balances[this].sub(amount);
+        _balances[this].sub(amount);
     }
 }
 
@@ -249,6 +250,3 @@ contract AATest
     }
     
 }
-
-
-
