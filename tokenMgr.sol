@@ -91,7 +91,7 @@ contract TokenHolder is ITokenHolder {
             qty <= currency.balanceOf(address(this)),
             "Insufficient tokens"
         ); // check if contract has enough tokens
-        require(msg.value == qty.mul(pricePer), "incorrect payment amount"); // check that the amount paid for each token is correct
+        require(msg.value == (qty * pricePer), "incorrect payment amount"); // check that the amount paid for each token is correct
         currency.transfer(to, qty);
     }
 
@@ -104,7 +104,7 @@ contract TokenHolder is ITokenHolder {
         // onlyOwner handles the case that only the owner of the transactionc an call this
         require(seller.tokenBalance() >= amt, "seller has insufficient funds"); // attest to see if the seller has enough tokens to sell
         require(seller.pricePer() <= maxPricePer, "price too high");
-        require(msg.value >= amt.mul(seller.pricePer), "Insufficient payment"); // check to see if the buyer has sent enough money to make this transaction
+        require(msg.value >= (amt * seller.pricePer()), "Insufficient payment"); // check to see if the buyer has sent enough money to make this transaction
 
         seller.sellToCaller(address(this), amt);
     }
@@ -124,14 +124,18 @@ contract TokenHolder is ITokenHolder {
         uint _pricePer,
         TokenManager mgr
     ) public payable virtual override onlyOwner {
-        require(mgr.ethBalance() >= amt.mul(_pricePer)); // check if the manager has enough money to buy the tokens
+        require(mgr.ethBalance() >= (amt * _pricePer)); // check if the manager has enough money to buy the tokens
         require(currency.balanceOf(address(this)) >= amt); // check if the owner has enough tokens to sell
         currency.transfer(address(mgr), amt);
     }
 
     // Validate that this contract can handle tokens of this type
     // You need to define this function in your derived classes, but it is already specified in IERC223Recipient
-    //function tokenFallback(address _from, uint _value, bytes memory _data) override external
+    function tokenFallback(
+        address _from,
+        uint _value,
+        bytes memory _data
+    ) external override {}
 }
 
 contract TokenManager is ERC223Token, TokenHolder {
@@ -147,7 +151,7 @@ contract TokenManager is ERC223Token, TokenHolder {
 
     // Returns the total price for the passed quantity of tokens
     function price(uint amt) public view returns (uint) {
-        return this.pricePerToken * amt;
+        return pricePerToken * amt;
     }
 
     // Returns the total fee, given this quantity of tokens
@@ -160,7 +164,7 @@ contract TokenManager is ERC223Token, TokenHolder {
         require(balanceOf(address(this)) >= amount);
         uint totalCost = price(amount) + fee(amount);
         require(msg.value >= totalCost);
-        transfer(to,amount);
+        transfer(to, amount);
 
         // Return excess payment if any
         uint excess = msg.value - totalCost;
@@ -170,30 +174,39 @@ contract TokenManager is ERC223Token, TokenHolder {
     }
 
     // Caller sells tokens to this contract
-    function buyFromCaller(uint amount) public payable {   
-        
-        require(balanceOf(msg.sender) >= amount, "Seller has insufficient tokens");
+    function buyFromCaller(uint amount) public payable {
+        require(
+            balanceOf(msg.sender) >= amount,
+            "Seller has insufficient tokens"
+        );
 
         uint payment = price(amount);
-        require(address(this).balance >= payment, "Contract has insufficient ETH");
-        
-        require(balanceOf(address(this)) >= amount, "Token transfer not received");
-        
-    
+        require(
+            address(this).balance >= payment,
+            "Contract has insufficient ETH"
+        );
+        transfer(address(this),amount);
+        require(
+            balanceOf(address(this)) >= amount,
+            "Token transfer not received"
+        );
+
         payable(msg.sender).transfer(payment);
     }
 
-    
     // Create some new tokens, and give them to this TokenManager
     function mint(uint amount) public onlyOwner {
         _totalSupply += amount;
         balances[address(this)] += amount;
         emit Transfer(address(0), address(this), amount, "");
     }
-    
-   // Destroy some existing tokens, that are owned by this TokenManager
+
+    // Destroy some existing tokens, that are owned by this TokenManager
     function melt(uint amount) external onlyOwner {
-        require(balanceOf(address(this)) >= amount, "Insufficient tokens to melt");
+        require(
+            balanceOf(address(this)) >= amount,
+            "Insufficient tokens to melt"
+        );
         _totalSupply -= amount;
         balances[address(this)] -= amount;
         emit Transfer(address(this), address(0), amount, "");
