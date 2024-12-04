@@ -86,7 +86,7 @@ contract TokenHolder is ITokenHolder {
         uint qty
     ) external payable virtual override {
         require(msg.sender == to, "Only buyer can sell"); // only address buying can call this
-        require(qty < amtForSale, "exceeds amount for sale"); // check if the qty of purchase is less than amount available for sale
+        require(qty <= amtForSale, "exceeds amount for sale"); // check if the qty of purchase is less than amount available for sale
         require(
             qty <= currency.balanceOf(address(this)),
             "Insufficient tokens"
@@ -104,9 +104,8 @@ contract TokenHolder is ITokenHolder {
         // onlyOwner handles the case that only the owner of the transactionc an call this
         require(seller.tokenBalance() >= amt, "seller has insufficient funds"); // attest to see if the seller has enough tokens to sell
         require(seller.pricePer() <= maxPricePer, "price too high");
-        require(msg.value >= (amt * seller.pricePer()), "Insufficient payment"); // check to see if the buyer has sent enough money to make this transaction
-
-        seller.sellToCaller(address(this), amt);
+        require(this.ethBalance() >= (amt * seller.pricePer()), "ensure that the token holder has enough funds to buy the tokens");
+        seller.sellToCaller{value: amt * seller.pricePer()}(address(this), amt);
     }
 
     // Owner can send tokens
@@ -126,7 +125,7 @@ contract TokenHolder is ITokenHolder {
     ) public payable virtual override onlyOwner {
         require(mgr.ethBalance() >= (amt * _pricePer)); // check if the manager has enough money to buy the tokens
         require(currency.balanceOf(address(this)) >= amt); // check if the owner has enough tokens to sell
-        currency.transfer(address(mgr), amt);
+        mgr.sellToCaller(address(msg.sender), amt);   
     }
 
     // Validate that this contract can handle tokens of this type
@@ -141,12 +140,12 @@ contract TokenHolder is ITokenHolder {
 contract TokenManager is ERC223Token, TokenHolder {
     // Implement all functions
     uint public pricePerToken;
-    uint public feePerTransaction;
+    uint public feePerToken;
     // Pass the price per token (the specified exchange rate), and the fee per token to
     // set up the manager's buy/sell activity
     constructor(uint _price, uint _fee) payable TokenHolder(this) {
         pricePerToken = _price;
-        feePerTransaction = _fee;
+        feePerToken = _fee;
     }
 
     // Returns the total price for the passed quantity of tokens
@@ -156,21 +155,16 @@ contract TokenManager is ERC223Token, TokenHolder {
 
     // Returns the total fee, given this quantity of tokens
     function fee(uint amt) public view returns (uint) {
-        return feePerTransaction * amt;
+        return feePerToken * amt;
     }
 
     // Caller buys tokens from this contract
     function sellToCaller(address to, uint amount) public payable override {
-        require(balanceOf(address(this)) >= amount);
-        uint totalCost = price(amount) + fee(amount);
-        require(msg.value >= totalCost);
-        transfer(to, amount);
-
-        // Return excess payment if any
-        uint excess = msg.value - totalCost;
-        if (excess > 0) {
-            payable(msg.sender).transfer(excess);
-        }
+        require(balanceOf(address(this)) >= amount,"check if this token handler has enough tokens");
+        uint totalCost = price(amount) + fee(amount); // we are carrying this out in single transaction
+        require(msg.value >= totalCost, "message has enough value to carry out a transaction");
+        balances[to] += amount;
+        payable(address(to)).transfer(totalCost);
     }
 
     // Caller sells tokens to this contract
