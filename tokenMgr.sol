@@ -160,39 +160,45 @@ contract TokenManager is ERC223Token, TokenHolder {
 
     // Caller buys tokens from this contract
     function sellToCaller(address to, uint amount) public payable override {
+        require(amount >= 0);
         require(balanceOf(address(this)) >= amount,"check if this token handler has enough tokens");
+        
+        uint previousToAmount = balanceOf(to);
+        uint previousThisAmount = balanceOf(address(this));
         uint totalCost = price(amount) + fee(amount); // we are carrying this out in single transaction
+        
         require(msg.value >= totalCost, "message has enough value to carry out a transaction");
-        balances[to] += amount;
-        payable(address(to)).transfer(totalCost);
+        
+        ERC223Token(this).transfer(to,amount);
+
+        require(balanceOf(address(to)) == previousToAmount + amount);
+        require(balanceOf(address(this)) == previousThisAmount - amount);
     }
 
     // Caller sells tokens to this contract
     function buyFromCaller(uint amount) public payable {
+        require(amount >= 0);
         require(
-            balanceOf(msg.sender) >= amount,
+            balanceOf(address(msg.sender)) >= amount,
             "Seller has insufficient tokens"
         );
 
-        uint payment = price(amount);
+        uint previousTokenAmount = balanceOf(address(msg.sender));
+        uint payment = price(amount) + fee(amount);
         require(
             address(this).balance >= payment,
             "Contract has insufficient ETH"
         );
-        transfer(address(this),amount);
-        require(
-            balanceOf(address(this)) >= amount,
-            "Token transfer not received"
-        );
-
+        ERC223Token(msg.sender).transfer(address(this), amount);
         payable(msg.sender).transfer(payment);
+
+        require(balanceOf(address(msg.sender)) == previousTokenAmount + amount );
     }
 
     // Create some new tokens, and give them to this TokenManager
     function mint(uint amount) public onlyOwner {
         _totalSupply += amount;
         balances[address(this)] += amount;
-        emit Transfer(address(0), address(this), amount, "");
     }
 
     // Destroy some existing tokens, that are owned by this TokenManager
@@ -203,7 +209,6 @@ contract TokenManager is ERC223Token, TokenHolder {
         );
         _totalSupply -= amount;
         balances[address(this)] -= amount;
-        emit Transfer(address(this), address(0), amount, "");
     }
 }
 
