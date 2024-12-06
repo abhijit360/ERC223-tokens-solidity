@@ -86,15 +86,16 @@ contract TokenHolder is ITokenHolder {
     }
 
     // This function is called by the buyer to pay in ETH and receive tokens.  Note that this contract should ONLY sell the amount of tokens at the price specified by putUpForSale!
-    function sellToCaller(
-        address to,
-        uint qty
-    ) external payable virtual override {
-        require(qty > amtForSale, "exceeds amount for sale"); // check if the qty of purchase is less than amount available for sale
-        require(msg.value == (qty * pricePer), "Not enough money to make this purchase TH sellToCaller"); // check that the amount paid for each token is correct
-        payable(address(this)).transfer((qty* pricePer)); // keep the money within the contract
-        currency.transfer(to, qty);
+   function sellToCaller(address to, uint qty) external payable virtual override {
+        require(qty > 0, "Quantity must be positive");
+        require(qty <= amtForSale, "Exceeds amount for sale"); // Fixed comparison
+        require(msg.value == (qty * pricePer), "Incorrect payment amount");
+
+        amtForSale -= qty; // Deduct sold quantity
+        currency.transfer(to, qty); // Transfer tokens to buyer
     }
+
+    
 
     // buy tokens from another holder.  This is OPTIONALLY payable.  The caller can provide the purchase ETH, or expect that the contract already holds it.
     function buy(
@@ -104,7 +105,7 @@ contract TokenHolder is ITokenHolder {
     ) public payable virtual override onlyOwner {
         // onlyOwner handles the case that only the owner of the transactionc an call this
         require(seller.tokenBalance() >= amt, "seller has insufficient funds"); // attest to see if the seller has enough tokens to sell
-        require(seller.pricePer() <= maxPricePer, "price too high");
+        require(seller.pricePer() <= maxPricePer, "we don't want to buy if the seller is selling at a maxPricePer. This could lead to an arbitrage situation.");
         require(this.ethBalance() >= (amt * seller.pricePer()), "ensure that the token holder has enough funds to buy the tokens");
         seller.sellToCaller{value: amt * seller.pricePer()}(address(this), amt);
     }
@@ -160,17 +161,29 @@ contract TokenManager is ERC223Token, TokenHolder {
     }
 
     // Caller buys tokens from this contract
-    function sellToCaller(address to, uint amount) public payable override {
-        require(amount > 0, "amount must be valid to sell");
-        mint(amount);
-        uint previousToAmount = balanceOf(to);
-        uint totalCost = price(amount) + fee(amount); // we are carrying this out in single transaction
-        require(msg.value >= totalCost, "mgr: message has enough value to carry out a transaction");
+    // function sellToCaller(address to, uint amount) public payable override {
+    //     require(amount > 0, "amount must be valid to sell");
+    //     mint(amount);
+    //     uint previousToAmount = balanceOf(to);
+    //     uint totalCost = price(amount) + fee(amount); // we are carrying this out in single transaction
+    //     require(msg.value >= totalCost, "mgr: message has enough value to carry out a transaction");
         
-        ERC223Token(this).transfer(to,amount);
-        payable(address(this)).transfer(totalCost);
-        require(balanceOf(address(to)) == previousToAmount + amount, "the to address gained the correct amount");
+    //     ERC223Token(this).transfer(to,amount);
+    //     payable(address(this)).transfer(totalCost);
+    //     require(balanceOf(address(to)) == previousToAmount + amount, "the to address gained the correct amount");
+    // }
+
+    function sellToCaller(address to, uint amount) public payable override {
+        require(amount > 0, "Amount must be valid to sell");
+        uint totalCost = price(amount) + fee(amount);
+        require(msg.value == totalCost, "Incorrect payment amount");
+
+        // Ensure sufficient tokens are available
+        require(balanceOf(address(this)) >= amount, "Insufficient tokens for sale");
+
+        currency.transfer(to, amount); // Transfer tokens to buyer
     }
+
 
     // Caller sells tokens to this contract
     function buyFromCaller(uint amount) public payable {
@@ -179,6 +192,7 @@ contract TokenManager is ERC223Token, TokenHolder {
             balanceOf(address(msg.sender)) >= amount,
             "Seller has insufficient tokens"
         );
+
 
         uint previousTokenAmount = balanceOf(address(msg.sender));
         uint payment = price(amount) + fee(amount);
@@ -189,7 +203,7 @@ contract TokenManager is ERC223Token, TokenHolder {
         ERC223Token(msg.sender).transfer(address(this), amount);
         payable(msg.sender).transfer(payment);
 
-        require(balanceOf(address(msg.sender)) == previousTokenAmount + amount );
+        require(balanceOf(address(msg.sender)) == previousTokenAmount - amount, "did not reduce the amount of token owned by the caller");
     }
 
     // Create some new tokens, and give them to this TokenManager
