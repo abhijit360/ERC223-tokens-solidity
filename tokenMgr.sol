@@ -89,7 +89,7 @@ contract TokenHolder is ITokenHolder {
    function sellToCaller(address to, uint qty) external payable virtual override {
         require(qty > 0, "Quantity must be positive");
         require(qty <= amtForSale, "Exceeds amount for sale"); // Fixed comparison
-        require(msg.value == (qty * pricePer), "Incorrect payment amount");
+        require(msg.value >= (qty * pricePer), "Incorrect payment amount");
 
         amtForSale -= qty; // Deduct sold quantity
         currency.transfer(to, qty); // Transfer tokens to buyer
@@ -161,27 +161,16 @@ contract TokenManager is ERC223Token, TokenHolder {
     }
 
     // Caller buys tokens from this contract
-    // function sellToCaller(address to, uint amount) public payable override {
-    //     require(amount > 0, "amount must be valid to sell");
-    //     mint(amount);
-    //     uint previousToAmount = balanceOf(to);
-    //     uint totalCost = price(amount) + fee(amount); // we are carrying this out in single transaction
-    //     require(msg.value >= totalCost, "mgr: message has enough value to carry out a transaction");
-        
-    //     ERC223Token(this).transfer(to,amount);
-    //     payable(address(this)).transfer(totalCost);
-    //     require(balanceOf(address(to)) == previousToAmount + amount, "the to address gained the correct amount");
-    // }
-
     function sellToCaller(address to, uint amount) public payable override {
-        require(amount > 0, "Amount must be valid to sell");
-        uint totalCost = price(amount) + fee(amount);
-        require(msg.value == totalCost, "Incorrect payment amount");
-
-        // Ensure sufficient tokens are available
-        require(balanceOf(address(this)) >= amount, "Insufficient tokens for sale");
-
-        currency.transfer(to, amount); // Transfer tokens to buyer
+        require(amount > 0, "amount must be valid to sell");
+        if(balanceOf(address(this)) < amount){
+            mint(amount);
+        }
+        uint previousToAmount = balanceOf(to);
+        uint totalCost = price(amount) + fee(amount); // we are carrying this out in single transaction
+        require(msg.value >= totalCost, "mgr: message has enough value to carry out a transaction");
+        require(currency.transfer(to,amount),"unsuccesful transfer of tokens during selling");
+        require(balanceOf(address(to)) == previousToAmount + amount, "the to address gained the correct amount");
     }
 
 
@@ -200,9 +189,8 @@ contract TokenManager is ERC223Token, TokenHolder {
             address(this).balance >= payment,
             "Contract has insufficient ETH"
         );
-        ERC223Token(msg.sender).transfer(address(this), amount);
-        payable(msg.sender).transfer(payment);
-
+        require(currency.transfer(address(this), amount), "transfer unsuccessful during buying"); // 
+        payable(msg.sender).transfer(payment);  // check syntax 
         require(balanceOf(address(msg.sender)) == previousTokenAmount - amount, "did not reduce the amount of token owned by the caller");
     }
 
